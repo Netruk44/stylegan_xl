@@ -174,12 +174,22 @@ def training_loop(
     # Check for existing checkpoint
     ckpt_pkl = None
     if restart_every > 0 and os.path.isfile(misc.get_ckpt_path(run_dir)):
-        ckpt_pkl = resume_pkl = misc.get_ckpt_path(run_dir)
+        ckpt_pkl = misc.get_ckpt_path(run_dir)
+        
+        if resume_pkl is None:
+            resume_pkl = ckpt_pkl
 
 
     if (resume_pkl is not None) and (rank == 0):
-        print(f'Resuming from "{resume_pkl}"')
+        if ckpt_pkl is not None:
+            print(f'Resuming from checkpoint "{ckpt_pkl}"')
+            with dnnlib.util.open_url(ckpt_pkl) as f:
+                resume_data = legacy.load_network_pkl(f)
+            for name, module in [('G', G), ('D', D), ('G_ema', G_ema)]:
+                misc.copy_params_and_buffers(resume_data[name], module, require_all=False)
 
+
+        print(f'Copying from model "{resume_pkl}"')
         with dnnlib.util.open_url(resume_pkl) as f:
             resume_data = legacy.load_network_pkl(f)
         for name, module in [('G', G), ('D', D), ('G_ema', G_ema)]:
