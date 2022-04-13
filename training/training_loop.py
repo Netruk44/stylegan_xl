@@ -188,20 +188,19 @@ def training_loop(
             for name, module in [('G', G), ('D', D), ('G_ema', G_ema)]:
                 misc.copy_params_and_buffers(resume_data[name], module, require_all=False)
 
-
-        print(f'Copying from model "{resume_pkl}"')
-        with dnnlib.util.open_url(resume_pkl) as f:
-            resume_data = legacy.load_network_pkl(f)
-        for name, module in [('G', G), ('D', D), ('G_ema', G_ema)]:
-            misc.copy_params_and_buffers(resume_data[name], module, require_all=False)
-
-        if ckpt_pkl is not None:            # Load ticks
+            # Load ticks
             __CUR_NIMG__ = resume_data['progress']['cur_nimg'].to(device)
             __CUR_TICK__ = resume_data['progress']['cur_tick'].to(device)
             __BATCH_IDX__ = resume_data['progress']['batch_idx'].to(device)
             __AUGMENT_P__ = resume_data['progress'].get('augment_p', torch.tensor(0.)).to(device)
             __PL_MEAN__ = resume_data['progress'].get('pl_mean', torch.zeros([])).to(device)
             best_fid = resume_data['progress']['best_fid']       # only needed for rank == 0
+
+        print(f'Copying from model "{resume_pkl}"')
+        with dnnlib.util.open_url(resume_pkl) as f:
+            resume_data = legacy.load_network_pkl(f)
+        for name, module in [('G', G), ('D', D), ('G_ema', G_ema)]:
+            misc.copy_params_and_buffers(resume_data[name], module, require_all=False)
 
     # this is relevant when you continue training a lower-res model
     # ie. train 16 model, start training 32 model but continue training 16 model
