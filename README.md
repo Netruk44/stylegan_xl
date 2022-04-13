@@ -35,12 +35,12 @@ If you find our code or paper useful, please cite
 
 ## ToDos
 - [x] Initial code release
-- [x] Add pretrained models (ImageNet{16,32,64,128}, FFHQ256, Pokemon256)
-- [ ] Add higher resolution models (ImageNet{256,512,1024})
+- [x] Add pretrained models (ImageNet{16,32,64,128,256}, FFHQ256, Pokemon256)
+- [ ] Add higher resolution models (ImageNet{512,1024}, FFHQ{512,1024})
 - [ ] Add PTI for inversion
 - [ ] Add StyleMC for editing
 
-The higher resolution models are currently retraining with improved settings, weights will be gradually rolled out. Expected release of the ImageNet256 model is **14.04.2022**.
+The higher resolution models are currently retraining with improved settings, weights will be gradually rolled out. Expected release of the ImageNet256 model is **21.04.2022**.
 
 ## Requirements ##
 - 64-bit Python 3.8 and PyTorch 1.9.0 (or later). See https://pytorch.org for PyTorch install instructions.
@@ -85,7 +85,7 @@ For a class-conditional dataset (ImageNet, CIFAR-10), add the flag ```--cond Tru
 #### Training the super-resolution stages
 Continuing with pretrained stem:
 ```
-python train.py --outdir=./training-runs/pokemon --cfg=stylegan3-t --data=./data/pokemon32.zip
+python train.py --outdir=./training-runs/pokemon --cfg=stylegan3-t --data=./data/pokemon32.zip \
   --gpus=8 --batch=64 --mirror=1 --snap 10 --batch-gpu 8 --kimg 10000 --syn_layers 10 \
   --superres --up_factor 2 --head_layers 7 \
   --path_stem training-runs/pokemon/00000-stylegan3-t-pokemon16-gpus8-batch64/best_model.pkl
@@ -93,9 +93,16 @@ python train.py --outdir=./training-runs/pokemon --cfg=stylegan3-t --data=./data
 
 ```--up_factor``` allows to train several stages at once, i.e., with ```--up_factor=4``` and a 16<sup>2</sup> stem you can directly train at resolution  64<sup>2</sup>.
 
-For unimodal datasets, we recommend using fewer layers, e.g., ```--head_layers 4```.
-
 If you have enough compute, a good tactic is to train several stages in parallel and then restart the superresolution stage training once in a while. The current stage will then reload its previous stem's ```best_model.pkl```. Performance can sometimes drop at first because of domain shift, but the superresolution stage quickly recovers and improves further.
+
+#### Training recommendations for datasets other than ImageNet
+The default settings are tuned for ImageNet. For smaller datasets (<50k images) or well-curated datasets (FFHQ), you can significantly decrease the model size enabling much faster training. Recommended settings are: ```--cbase 128 --cmax 128 --syn_layers 4``` and for superresolution stages ```--head_layers 4```. 
+
+Suppose you want to train as few stages as possible. We recommend training a 32x32 or 64x64 stem, then directly scaling to the final resolution (as described above, you must adjust ```--up_factor``` accordingly). However, generally, progressive growing yields better results faster as the throughput is much higher at lower resolutions. This can be seen in this figure by [Karras et al., 2017](https://arxiv.org/abs/1710.10196):
+
+<p align="center">
+  <img width="400" src="https://user-images.githubusercontent.com/29833625/162812365-1a718ec1-13f5-4944-b6c5-f63020c817a6.png">
+</p>
 
 
 ## Generating Samples & Interpolations ##
@@ -117,11 +124,11 @@ To generate a conditional sample sheet, run
 ```
 python gen_samplesheet.py --outdir=sample_sheets --trunc=1.0 \
   --network=https://s3.eu-central-1.amazonaws.com/avg-projects/stylegan_xl/models/imagenet128.pkl \
-  --samples-per-class 4 --classes 0-32 --grid-width 32 \\
+  --samples-per-class 4 --classes 0-32 --grid-width 32 
 ```
 
-For the ImageNet models, we enable class-wise multi-modal truncation (a fast and class-conditional version of the truncation method by [Self-Distilled
-GAN](https://self-distilled-stylegan.github.io/)). We generate 60k class-conditional latents and find 30 cluster centroids via k-means. For a given samples, multi-modal truncation finds the closest centroids and interpolates towards it. To switch from uni-model to multi-modal truncation, pass
+For ImageNet models, we enable multi-modal truncation (proposed by [Self-Distilled
+GAN](https://self-distilled-stylegan.github.io/)). We generated 600k find 10k cluster centroids via k-means. For a given samples, multi-modal truncation finds the closest centroids and interpolates towards it. To switch from uni-model to multi-modal truncation, pass
 
 <sub>`--centroids-path=https://s3.eu-central-1.amazonaws.com/avg-projects/stylegan_xl/models/imagenet_centroids.npy`</sub><br>
 
@@ -139,13 +146,14 @@ ImageNet| 16<sup>2</sup>  |0.73|  <sub>`https://s3.eu-central-1.amazonaws.com/av
 ImageNet| 32<sup>2</sup>  |1.11|  <sub>`https://s3.eu-central-1.amazonaws.com/avg-projects/stylegan_xl/models/imagenet32.pkl`</sub><br>
 ImageNet| 64<sup>2</sup>  |1.52|  <sub>`https://s3.eu-central-1.amazonaws.com/avg-projects/stylegan_xl/models/imagenet64.pkl`</sub><br>
 ImageNet| 128<sup>2</sup> |1.77|  <sub>`https://s3.eu-central-1.amazonaws.com/avg-projects/stylegan_xl/models/imagenet128.pkl`</sub><br>
+ImageNet| 256<sup>2</sup> |2.26|  <sub>`https://s3.eu-central-1.amazonaws.com/avg-projects/stylegan_xl/models/imagenet256.pkl`</sub><br>
 CIFAR10 | 32<sup>2</sup>  |1.85|  <sub>`https://s3.eu-central-1.amazonaws.com/avg-projects/stylegan_xl/models/cifar10.pkl`</sub><br>
 FFHQ    | 256<sup>2</sup> |2.19|  <sub>`https://s3.eu-central-1.amazonaws.com/avg-projects/stylegan_xl/models/ffhq256.pkl`</sub><br>
 Pokemon | 256<sup>2</sup> |23.97| <sub>`https://s3.eu-central-1.amazonaws.com/avg-projects/stylegan_xl/models/pokemon256.pkl`</sub><br>
 
 The weights for the ImageNet models at 64<sup>2</sup> and higher are currently still getting updated. If you cannot reproduce the reported FID via ```calc_metrics.py``` (see below) you are likely using an older cached network pkl. Delete the previous model weights in your cache folder at ```$HOME/.cache/dnnlib/downloads/```.
 
-Last update on **05.04.2022**.
+Last update on **11.04.2022**.
 
 ## Quality Metrics ##
 Per default, ```train.py``` tracks FID50k during training. To calculate metrics for a specific network snapshot, run
